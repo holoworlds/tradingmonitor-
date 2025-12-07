@@ -52,26 +52,26 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   }
 
   return (
-    <div className="bg-slate-800 rounded-lg border border-slate-700 h-full flex flex-col">
+    <div className="bg-white rounded-lg border border-slate-200 h-full flex flex-col shadow-sm">
       {/* Strategy List Tiled View */}
-      <div className="p-3 bg-slate-900 border-b border-slate-700">
+      <div className="p-3 bg-slate-50 border-b border-slate-200 rounded-t-lg">
          <div className="flex justify-between items-center mb-2">
-            <h2 className="text-white font-bold text-sm">策略列表</h2>
-            <button onClick={onAddStrategy} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-xs">+ 新增</button>
+            <h2 className="text-slate-800 font-bold text-sm">策略列表</h2>
+            <button onClick={onAddStrategy} className="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-xs shadow-sm transition-colors">+ 新增</button>
          </div>
          <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto custom-scrollbar mb-2">
              {strategies.map(s => (
                 <div 
                   key={s.id} 
                   onClick={() => onSelectStrategy(s.id)}
-                  className={`border p-2 rounded cursor-pointer relative ${selectedStrategyId === s.id ? 'border-blue-500 bg-slate-800' : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800'}`}
+                  className={`border p-2 rounded cursor-pointer relative transition-all ${selectedStrategyId === s.id ? 'border-blue-500 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
                 >
-                   <div className="font-bold text-xs truncate text-slate-200">{s.name}</div>
-                   <div className="text-[10px] text-slate-400">{s.symbol} {s.interval}</div>
+                   <div className="font-bold text-xs truncate text-slate-800">{s.name}</div>
+                   <div className="text-[10px] text-slate-500">{s.symbol} {s.interval}</div>
                    <div className="flex justify-between items-center mt-1">
-                      <div className={`w-2 h-2 rounded-full ${s.isActive ? 'bg-emerald-500' : 'bg-slate-600'}`}></div>
+                      <div className={`w-2 h-2 rounded-full ${s.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
                       {strategies.length > 1 && selectedStrategyId === s.id && (
-                          <button onClick={(e) => { e.stopPropagation(); onRemoveStrategy(s.id); }} className="text-rose-500 text-[10px] hover:text-rose-400">删除</button>
+                          <button onClick={(e) => { e.stopPropagation(); onRemoveStrategy(s.id); }} className="text-rose-500 text-[10px] hover:text-rose-600 font-medium">删除</button>
                       )}
                    </div>
                 </div>
@@ -79,39 +79,39 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
          </div>
          
          {/* Active Strategy Main Toggle */}
-         <div className="flex items-center justify-between bg-slate-800 p-2 rounded">
-             <span className="text-xs text-slate-400">当前策略状态</span>
+         <div className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded shadow-sm">
+             <span className="text-xs text-slate-600 font-medium">当前策略状态</span>
              <Toggle checked={activeConfig.isActive} onChange={(v: boolean) => handleChange('isActive', v)} size="sm" />
          </div>
       </div>
 
-      <div className="p-4 border-b border-slate-700 bg-slate-900/50">
-         <div className="flex justify-between items-center bg-slate-800 p-2 rounded">
+      <div className="p-4 border-b border-slate-200 bg-slate-50">
+         <div className="flex justify-between items-center bg-white border border-slate-200 p-2 rounded shadow-sm">
             <div>
-              <div className="text-xs text-slate-400">当前持仓 ({activeConfig.symbol})</div>
-              <div className={`text-sm font-bold ${positionStatus === 'FLAT' ? 'text-slate-500' : positionStatus === 'LONG' ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <div className="text-xs text-slate-500">当前持仓 ({activeConfig.symbol})</div>
+              <div className={`text-sm font-bold ${positionStatus === 'FLAT' ? 'text-slate-400' : positionStatus === 'LONG' ? 'text-emerald-600' : 'text-rose-600'}`}>
                 {getStatusText(positionStatus)}
               </div>
             </div>
             <div className="text-right">
-              <div className="text-xs text-slate-400">最新价格</div>
-              <div className="text-sm font-mono text-white">${lastPrice.toFixed(2)}</div>
+              <div className="text-xs text-slate-500">最新价格</div>
+              <div className="text-sm font-mono text-slate-900 font-bold">${lastPrice.toFixed(2)}</div>
             </div>
          </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/50">
         {/* Section 1: Market & Basic */}
         <Accordion title="市场 & 基础设置" isOpen={openSection === 'market'} onClick={() => toggleSection('market')}>
             <div className="space-y-3">
               <Input label="策略名称" value={activeConfig.name} onChange={(v: string) => handleChange('name', v)} />
               <div>
-                <label className="block text-slate-400 text-xs mb-1">交易对 (可手动输入)</label>
+                <label className="block text-slate-600 text-xs mb-1 font-medium">交易对 (可手动输入)</label>
                 <input 
                   list="symbols" 
                   value={activeConfig.symbol} 
                   onChange={(e) => handleChange('symbol', e.target.value.toUpperCase())}
-                  className="w-full bg-slate-900 border border-slate-600 rounded p-1.5 text-xs text-white focus:border-blue-500 outline-none"
+                  className="w-full bg-white border border-slate-300 rounded p-1.5 text-xs text-slate-900 focus:border-blue-500 outline-none shadow-sm"
                   placeholder="如 BTCUSDT"
                 />
                 <datalist id="symbols">
@@ -120,16 +120,14 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
               <Select label="K线周期" value={activeConfig.interval} options={AVAILABLE_INTERVALS} onChange={(v: string) => handleChange('interval', v)} />
               <Input label="开仓金额 (USDT)" type="number" value={activeConfig.tradeAmount} onChange={(v: string) => handleChange('tradeAmount', parseFloat(v))} />
-              <Input label="Webhook 地址" value={activeConfig.webhookUrl} onChange={(v: string) => handleChange('webhookUrl', v)} placeholder="https://..." />
-              <Input label="密钥 (Secret)" value={activeConfig.secret} onChange={(v: string) => handleChange('secret', v)} placeholder="Secret Key" />
             </div>
         </Accordion>
 
         {/* Section 2: Manual Control */}
         <Accordion title="手动接管 (Manual Takeover)" isOpen={openSection === 'manual'} onClick={() => toggleSection('manual')}>
-             <div className="mb-4 bg-slate-900 p-2 rounded border border-slate-600">
+             <div className="mb-4 bg-white p-2 rounded border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center mb-2">
-                   <span className="text-xs font-bold text-orange-400">启动接管 (停止自动信号)</span>
+                   <span className="text-xs font-bold text-orange-500">启动接管 (停止自动信号)</span>
                    <Toggle checked={activeConfig.manualTakeover} onChange={(v: boolean) => handleChange('manualTakeover', v)} />
                 </div>
                 <p className="text-[10px] text-slate-500">
@@ -137,13 +135,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 </p>
              </div>
              <div className="grid grid-cols-2 gap-2 opacity-100 transition-opacity">
-                <button onClick={() => onManualOrder('LONG')} className="bg-emerald-700 hover:bg-emerald-600 text-white p-2 rounded text-xs font-bold">
+                <button onClick={() => onManualOrder('LONG')} className="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded text-xs font-bold shadow-sm transition-colors">
                   手动开多 (OPEN LONG)
                 </button>
-                <button onClick={() => onManualOrder('SHORT')} className="bg-rose-700 hover:bg-rose-600 text-white p-2 rounded text-xs font-bold">
+                <button onClick={() => onManualOrder('SHORT')} className="bg-rose-600 hover:bg-rose-500 text-white p-2 rounded text-xs font-bold shadow-sm transition-colors">
                   手动开空 (OPEN SHORT)
                 </button>
-                <button onClick={() => onManualOrder('FLAT')} className="col-span-2 bg-slate-600 hover:bg-slate-500 text-white p-2 rounded text-xs font-bold">
+                <button onClick={() => onManualOrder('FLAT')} className="col-span-2 bg-slate-600 hover:bg-slate-500 text-white p-2 rounded text-xs font-bold shadow-sm transition-colors">
                   一键平仓 (CLOSE ALL)
                 </button>
              </div>
@@ -153,13 +151,13 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
         <Accordion title="信号配置" isOpen={openSection === 'signals'} onClick={() => toggleSection('signals')}>
             <div className="space-y-4">
                {/* Trigger Mode */}
-               <div className="bg-slate-900 p-2 rounded border border-slate-700 mb-2">
+               <div className="bg-white p-2 rounded border border-slate-200 shadow-sm mb-2">
                    <div className="flex justify-between items-center">
-                     <span className="text-xs font-bold text-slate-300">触发模式 (Trigger)</span>
+                     <span className="text-xs font-bold text-slate-700">触发模式 (Trigger)</span>
                      <div className="flex items-center gap-2">
-                        <span className={`text-[10px] ${!activeConfig.triggerOnClose ? 'text-blue-400 font-bold' : 'text-slate-500'}`}>盘中实时</span>
+                        <span className={`text-[10px] ${!activeConfig.triggerOnClose ? 'text-blue-600 font-bold' : 'text-slate-400'}`}>盘中实时</span>
                         <Toggle checked={activeConfig.triggerOnClose} onChange={(v: boolean) => handleChange('triggerOnClose', v)} size="sm" />
-                        <span className={`text-[10px] ${activeConfig.triggerOnClose ? 'text-blue-400 font-bold' : 'text-slate-500'}`}>K线收盘</span>
+                        <span className={`text-[10px] ${activeConfig.triggerOnClose ? 'text-blue-600 font-bold' : 'text-slate-400'}`}>K线收盘</span>
                      </div>
                    </div>
                    <p className="text-[9px] text-slate-500 mt-1">
@@ -168,15 +166,15 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                </div>
 
                {/* Trend Filter */}
-               <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                   <div className="text-xs font-bold text-slate-300 mb-2">趋势过滤 (Trend Filter)</div>
+               <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                   <div className="text-xs font-bold text-slate-700 mb-2">趋势过滤 (Trend Filter)</div>
                    <Toggle label="多头趋势 (7>25>99) 不开空" checked={activeConfig.trendFilterBlockShort} onChange={(v: boolean) => handleChange('trendFilterBlockShort', v)} size="sm" className="mb-1"/>
                    <Toggle label="空头趋势 (7<25<99) 不开多" checked={activeConfig.trendFilterBlockLong} onChange={(v: boolean) => handleChange('trendFilterBlockLong', v)} size="sm"/>
                </div>
 
                {/* MACD Config */}
-               <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                  <Toggle label="启用 MACD" checked={activeConfig.useMACD} onChange={(v: boolean) => handleChange('useMACD', v)} className="mb-2 font-bold text-slate-300"/>
+               <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <Toggle label="启用 MACD" checked={activeConfig.useMACD} onChange={(v: boolean) => handleChange('useMACD', v)} className="mb-2 font-bold text-slate-800"/>
                   {activeConfig.useMACD && (
                     <div className="space-y-2">
                         <div className="grid grid-cols-3 gap-2">
@@ -195,8 +193,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                </div>
 
                {/* EMA 7/25 */}
-               <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                  <Toggle label="启用 EMA 7/25" checked={activeConfig.useEMA7_25} onChange={(v: boolean) => handleChange('useEMA7_25', v)} className="mb-2 font-bold text-blue-400"/>
+               <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <Toggle label="启用 EMA 7/25" checked={activeConfig.useEMA7_25} onChange={(v: boolean) => handleChange('useEMA7_25', v)} className="mb-2 font-bold text-blue-600"/>
                   {activeConfig.useEMA7_25 && (
                     <div className="grid grid-cols-2 gap-2">
                        <Toggle label="上穿开多" checked={activeConfig.ema7_25_Long} onChange={(v: boolean) => handleChange('ema7_25_Long', v)} size="sm" />
@@ -208,8 +206,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                </div>
 
                {/* EMA 7/99 */}
-               <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                  <Toggle label="启用 EMA 7/99" checked={activeConfig.useEMA7_99} onChange={(v: boolean) => handleChange('useEMA7_99', v)} className="mb-2 font-bold text-purple-400"/>
+               <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <Toggle label="启用 EMA 7/99" checked={activeConfig.useEMA7_99} onChange={(v: boolean) => handleChange('useEMA7_99', v)} className="mb-2 font-bold text-purple-600"/>
                   {activeConfig.useEMA7_99 && (
                     <div className="grid grid-cols-2 gap-2">
                        <Toggle label="上穿开多" checked={activeConfig.ema7_99_Long} onChange={(v: boolean) => handleChange('ema7_99_Long', v)} size="sm" />
@@ -221,8 +219,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                </div>
 
                {/* EMA 25/99 */}
-               <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                  <Toggle label="启用 EMA 25/99" checked={activeConfig.useEMA25_99} onChange={(v: boolean) => handleChange('useEMA25_99', v)} className="mb-2 font-bold text-indigo-400"/>
+               <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <Toggle label="启用 EMA 25/99" checked={activeConfig.useEMA25_99} onChange={(v: boolean) => handleChange('useEMA25_99', v)} className="mb-2 font-bold text-indigo-600"/>
                   {activeConfig.useEMA25_99 && (
                     <div className="grid grid-cols-2 gap-2">
                        <Toggle label="上穿开多" checked={activeConfig.ema25_99_Long} onChange={(v: boolean) => handleChange('ema25_99_Long', v)} size="sm" />
@@ -234,8 +232,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                </div>
 
                {/* EMA Double (7/25 vs 99) */}
-               <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                  <Toggle label="启用 EMA 7/25 上穿下穿 99" checked={activeConfig.useEMADouble} onChange={(v: boolean) => handleChange('useEMADouble', v)} className="mb-2 font-bold text-amber-400"/>
+               <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <Toggle label="启用 EMA 7/25 上穿下穿 99" checked={activeConfig.useEMADouble} onChange={(v: boolean) => handleChange('useEMADouble', v)} className="mb-2 font-bold text-amber-600"/>
                   {activeConfig.useEMADouble && (
                     <div className="grid grid-cols-2 gap-2">
                        <Toggle label="7/25上穿99 开多" checked={activeConfig.emaDoubleLong} onChange={(v: boolean) => handleChange('emaDoubleLong', v)} size="sm" />
@@ -253,8 +251,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
            <div className="space-y-4">
               
               {/* Trailing Stop */}
-              <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                  <Toggle label="追踪止盈" checked={activeConfig.useTrailingStop} onChange={(v: boolean) => handleChange('useTrailingStop', v)} className="font-bold mb-2" />
+              <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <Toggle label="追踪止盈" checked={activeConfig.useTrailingStop} onChange={(v: boolean) => handleChange('useTrailingStop', v)} className="font-bold mb-2 text-slate-800" />
                   {activeConfig.useTrailingStop && (
                      <div className="grid grid-cols-2 gap-2">
                         <Input label="激活比例 %" type="number" value={activeConfig.trailActivation} onChange={(v: string) => handleChange('trailActivation', parseFloat(v))} />
@@ -264,8 +262,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
 
               {/* Fixed TP/SL */}
-              <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                  <Toggle label="固定止盈止损" checked={activeConfig.useFixedTPSL} onChange={(v: boolean) => handleChange('useFixedTPSL', v)} className="font-bold mb-2" />
+              <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <Toggle label="固定止盈止损" checked={activeConfig.useFixedTPSL} onChange={(v: boolean) => handleChange('useFixedTPSL', v)} className="font-bold mb-2 text-slate-800" />
                   {activeConfig.useFixedTPSL && (
                      <div className="grid grid-cols-2 gap-2">
                         <Input label="止盈 %" type="number" value={activeConfig.takeProfitPct} onChange={(v: string) => handleChange('takeProfitPct', parseFloat(v))} />
@@ -275,12 +273,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
 
               {/* Multi-Level TP/SL */}
-              <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                  <Toggle label="多级止盈止损" checked={activeConfig.useMultiTPSL} onChange={(v: boolean) => handleChange('useMultiTPSL', v)} className="font-bold mb-2" />
+              <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <Toggle label="多级止盈止损" checked={activeConfig.useMultiTPSL} onChange={(v: boolean) => handleChange('useMultiTPSL', v)} className="font-bold mb-2 text-slate-800" />
                   {activeConfig.useMultiTPSL && (
                     <div className="space-y-3">
                       <div>
-                        <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">分批止盈</div>
+                        <div className="text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">分批止盈</div>
                         {activeConfig.tpLevels.map((tp, idx) => (
                            <div key={`tp-${idx}`} className="flex items-end gap-2 mb-2">
                                <div className="pb-2"><Toggle checked={tp.active} onChange={(v: boolean) => handleArrayChange('tpLevels', idx, 'active', v)} size="sm"/></div>
@@ -289,8 +287,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                            </div>
                         ))}
                       </div>
-                      <div className="border-t border-slate-700 pt-2">
-                        <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">分批止损</div>
+                      <div className="border-t border-slate-200 pt-2">
+                        <div className="text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">分批止损</div>
                         {activeConfig.slLevels.map((sl, idx) => (
                            <div key={`sl-${idx}`} className="flex items-end gap-2 mb-2">
                                <div className="pb-2"><Toggle checked={sl.active} onChange={(v: boolean) => handleArrayChange('slLevels', idx, 'active', v)} size="sm"/></div>
@@ -304,8 +302,8 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
 
               {/* Reverse */}
-              <div className="bg-slate-900 p-2 rounded border border-slate-700">
-                  <Toggle label="反手策略 (Stop & Reverse)" checked={activeConfig.useReverse} onChange={(v: boolean) => handleChange('useReverse', v)} className="font-bold mb-2" />
+              <div className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                  <Toggle label="反手策略 (Stop & Reverse)" checked={activeConfig.useReverse} onChange={(v: boolean) => handleChange('useReverse', v)} className="font-bold mb-2 text-slate-800" />
                   {activeConfig.useReverse && (
                      <div className="space-y-1">
                         <Toggle label="多转空" checked={activeConfig.reverseLongToShort} onChange={(v: boolean) => handleChange('reverseLongToShort', v)} size="sm"/>
@@ -330,38 +328,38 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
 // --- Reusable UI Components ---
 
 const Accordion = ({ title, isOpen, onClick, children }: any) => (
-  <div className="border-b border-slate-700">
+  <div className="border-b border-slate-200">
     <button 
-      className="w-full flex justify-between items-center p-4 bg-slate-800 hover:bg-slate-700 transition-colors"
+      className="w-full flex justify-between items-center p-4 bg-white hover:bg-slate-50 transition-colors"
       onClick={onClick}
     >
-      <span className="font-semibold text-slate-200 text-sm">{title}</span>
-      <span className={`transform transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+      <span className="font-semibold text-slate-700 text-sm">{title}</span>
+      <span className={`transform transition-transform text-slate-400 ${isOpen ? 'rotate-180' : ''}`}>▼</span>
     </button>
-    {isOpen && <div className="p-4 bg-slate-800/50">{children}</div>}
+    {isOpen && <div className="p-4 bg-slate-50">{children}</div>}
   </div>
 );
 
 const Input = ({ label, value, onChange, type = "text", placeholder }: any) => (
   <div className="mb-2">
-    <label className="block text-slate-400 text-xs mb-1">{label}</label>
+    <label className="block text-slate-600 text-xs mb-1 font-medium">{label}</label>
     <input 
       type={type} 
       value={value} 
       onChange={(e) => onChange(e.target.value)} 
       placeholder={placeholder}
-      className="w-full bg-slate-900 border border-slate-600 rounded p-1.5 text-xs text-white focus:border-blue-500 outline-none"
+      className="w-full bg-white border border-slate-300 rounded p-1.5 text-xs text-slate-900 focus:border-blue-500 outline-none shadow-sm"
     />
   </div>
 );
 
 const Select = ({ label, value, options, onChange }: any) => (
   <div className="mb-2">
-    <label className="block text-slate-400 text-xs mb-1">{label}</label>
+    <label className="block text-slate-600 text-xs mb-1 font-medium">{label}</label>
     <select 
       value={value} 
       onChange={(e) => onChange(e.target.value)} 
-      className="w-full bg-slate-900 border border-slate-600 rounded p-1.5 text-xs text-white focus:border-blue-500 outline-none"
+      className="w-full bg-white border border-slate-300 rounded p-1.5 text-xs text-slate-900 focus:border-blue-500 outline-none shadow-sm"
     >
       {options.map((o: any) => <option key={o} value={o}>{o}</option>)}
     </select>
@@ -370,12 +368,12 @@ const Select = ({ label, value, options, onChange }: any) => (
 
 const Toggle = ({ label, checked, onChange, size = "md", className = "" }: any) => (
   <div className={`flex items-center justify-between ${className}`}>
-    <span className={`text-slate-300 ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>{label}</span>
+    <span className={`text-slate-700 font-medium ${size === 'sm' ? 'text-xs' : 'text-sm'}`}>{label}</span>
     <button 
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex items-center rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-slate-700'} ${size === 'sm' ? 'h-4 w-8' : 'h-6 w-11'}`}
+      className={`relative inline-flex items-center rounded-full transition-colors shadow-inner ${checked ? 'bg-blue-600' : 'bg-slate-300'} ${size === 'sm' ? 'h-4 w-8' : 'h-6 w-11'}`}
     >
-      <span className={`inline-block transform rounded-full bg-white transition-transform ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} ${checked ? (size === 'sm' ? 'translate-x-4' : 'translate-x-6') : 'translate-x-1'}`} />
+      <span className={`inline-block transform rounded-full bg-white transition-transform shadow-sm ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} ${checked ? (size === 'sm' ? 'translate-x-4' : 'translate-x-6') : 'translate-x-1'}`} />
     </button>
   </div>
 );

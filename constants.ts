@@ -3,12 +3,13 @@ import { StrategyConfig } from "./types";
 
 export const AVAILABLE_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT'] as const;
 
-// Binance Futures standard intervals. 
-// Note: 6m, 45m, 10h, 2d are not standard Binance intervals, so closest valid ones are provided or omitted.
+// Extended list of intervals as requested.
+// Note: Non-standard intervals (e.g., 2m, 6m, 31m) may not be natively supported by Binance API 
+// and might result in no data unless the API supports them or resampling is implemented.
 export const AVAILABLE_INTERVALS = [
-  '1m', '3m', '5m', '15m', '30m', 
-  '1h', '2h', '4h', '6h', '8h', '12h', 
-  '1d', '3d', '1w'
+  '1m', '2m', '3m', '5m', '6m', '10m', '15m', '20m', '30m', '31m', '45m', 
+  '1h', '2h', '3h', '4h', '6h', '10h', '12h', 
+  '1d', '2d', '3d', '1w', '1M'
 ] as const; 
 
 // Binance Futures (USDT-M) API Endpoints
@@ -18,11 +19,11 @@ export const BINANCE_REST_BASE = 'https://fapi.binance.com/fapi/v1';
 export const DEFAULT_CONFIG: StrategyConfig = {
   id: 'default_1',
   name: 'BTC 策略 #1',
-  isActive: false,
+  isActive: false, // Default: Closed
 
   symbol: 'BTCUSDT',
   interval: '1m',
-  tradeAmount: 0,
+  tradeAmount: 0, // Default: 0
   webhookUrl: '',
   secret: '',
   

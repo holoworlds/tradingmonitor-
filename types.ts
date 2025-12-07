@@ -1,6 +1,9 @@
 
 export type SymbolType = string;
-export type IntervalType = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '6h' | '8h' | '12h' | '1d' | '3d' | '1w';
+export type IntervalType = 
+  | '1m' | '2m' | '3m' | '5m' | '6m' | '10m' | '15m' | '20m' | '30m' | '31m' | '45m' 
+  | '1h' | '2h' | '3h' | '4h' | '6h' | '10h' | '12h' 
+  | '1d' | '2d' | '3d' | '1w' | '1M';
 
 export interface Candle {
   time: number;
