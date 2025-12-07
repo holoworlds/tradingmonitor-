@@ -18,7 +18,7 @@ export const BINANCE_REST_BASE = 'https://fapi.binance.com/fapi/v1';
 export const DEFAULT_CONFIG: StrategyConfig = {
   id: 'default_1',
   name: 'BTC 策略 #1',
-  isActive: true,
+  isActive: false,
 
   symbol: 'BTCUSDT',
   interval: '1m',
