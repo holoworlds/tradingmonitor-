@@ -22,7 +22,7 @@ export const DEFAULT_CONFIG: StrategyConfig = {
 
   symbol: 'BTCUSDT',
   interval: '1m',
-  tradeAmount: 1000,
+  tradeAmount: 0,
   webhookUrl: '',
   secret: '',
   
