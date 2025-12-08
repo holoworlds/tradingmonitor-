@@ -1,9 +1,11 @@
+
 import WebSocket from 'ws';
-import { StrategyConfig, StrategyRuntime, Candle, PositionState, TradeStats, WebhookPayload } from "../types";
+import { StrategyConfig, StrategyRuntime, Candle, PositionState, TradeStats, WebhookPayload, IntervalType } from "../types";
 import { fetchHistoricalCandles, parseSocketMessage } from "../services/binanceService";
 import { enrichCandlesWithIndicators } from "../services/indicatorService";
 import { evaluateStrategy } from "../services/strategyEngine";
 import { BINANCE_WS_BASE } from "../constants";
+import { determineBaseConfig, resampleCandles } from "../services/resampleService";
 
 const INITIAL_POS_STATE: PositionState = {
     direction: 'FLAT', 
@@ -27,6 +29,11 @@ export class StrategyRunner {
     private onUpdate: (id: string, runtime: StrategyRuntime) => void;
     private onLog: (log: any) => void;
 
+    // Resampling State
+    private baseInterval: IntervalType = '1m';
+    private isNativeInterval: boolean = true;
+    private baseCandles: Candle[] = []; // Buffer for raw candles from Binance
+
     constructor(config: StrategyConfig, onUpdate: (id: string, runtime: StrategyRuntime) => void, onLog: (log: any) => void) {
         this.onUpdate = onUpdate;
         this.onLog = onLog;
@@ -41,18 +48,35 @@ export class StrategyRunner {
 
     public async start() {
         console.log(`[${this.runtime.config.name}] Starting...`);
-        // 1. Fetch Historical Data
-        const history = await fetchHistoricalCandles(this.runtime.config.symbol, this.runtime.config.interval);
-        this.runtime.candles = enrichCandlesWithIndicators(history, {
-            macdFast: this.runtime.config.macdFast,
-            macdSlow: this.runtime.config.macdSlow,
-            macdSignal: this.runtime.config.macdSignal
-        });
-        if (history.length > 0) {
-            this.runtime.lastPrice = history[history.length - 1].close;
+        
+        // 1. Determine Data Source Config (Resampling vs Native)
+        const { baseInterval, isNative } = determineBaseConfig(this.runtime.config.interval);
+        this.baseInterval = baseInterval;
+        this.isNativeInterval = isNative;
+        
+        console.log(`[${this.runtime.config.name}] Mode: ${isNative ? 'Native' : 'Resample'}, Base: ${baseInterval}, Target: ${this.runtime.config.interval}`);
+
+        // 2. Fetch Historical Data (Base Interval)
+        const history = await fetchHistoricalCandles(this.runtime.config.symbol, this.baseInterval);
+        
+        if (this.isNativeInterval) {
+            // Direct use
+            this.runtime.candles = this.enrich(history);
+            // We maintain baseCandles even in native mode for consistency in processCandle if we wanted,
+            // but for performance, native mode can bypass resampling steps.
+        } else {
+            // Store raw history for resampling
+            this.baseCandles = history;
+            // Generate initial resampled candles
+            const resampled = resampleCandles(this.baseCandles, this.runtime.config.interval, this.baseInterval);
+            this.runtime.candles = this.enrich(resampled);
+        }
+
+        if (this.runtime.candles.length > 0) {
+            this.runtime.lastPrice = this.runtime.candles[this.runtime.candles.length - 1].close;
         }
         
-        // 2. Connect to WebSocket
+        // 3. Connect to WebSocket
         this.connectWebSocket();
     }
 
@@ -66,6 +90,7 @@ export class StrategyRunner {
             clearInterval(this.pingInterval);
         }
         this.isConnected = false;
+        this.baseCandles = [];
     }
 
     public updateConfig(newConfig: StrategyConfig) {
@@ -158,13 +183,14 @@ export class StrategyRunner {
     }
 
     private connectWebSocket() {
-        const streamName = `${this.runtime.config.symbol.toLowerCase()}@kline_${this.runtime.config.interval}`;
+        // Subscribe to BASE interval stream
+        const streamName = `${this.runtime.config.symbol.toLowerCase()}@kline_${this.baseInterval}`;
         const wsUrl = `${BINANCE_WS_BASE}${streamName}`;
         
         this.ws = new WebSocket(wsUrl);
 
         this.ws.on('open', () => {
-            console.log(`[${this.runtime.config.name}] WS Connected`);
+            console.log(`[${this.runtime.config.name}] WS Connected (${streamName})`);
             this.isConnected = true;
         });
 
@@ -195,31 +221,52 @@ export class StrategyRunner {
 
     private processCandle(newCandle: Candle) {
         this.runtime.lastPrice = newCandle.close;
+        let enrichedCandles: Candle[] = [];
 
-        // 1. Update Candle List
-        let updatedCandles = [...this.runtime.candles];
-        const lastCandle = updatedCandles[updatedCandles.length - 1];
+        if (this.isNativeInterval) {
+            // NATIVE MODE
+            let updatedCandles = [...this.runtime.candles];
+            const lastCandle = updatedCandles[updatedCandles.length - 1];
 
-        if (lastCandle && lastCandle.time === newCandle.time) {
-            updatedCandles[updatedCandles.length - 1] = newCandle;
+            if (lastCandle && lastCandle.time === newCandle.time) {
+                updatedCandles[updatedCandles.length - 1] = newCandle;
+            } else {
+                updatedCandles.push(newCandle);
+            }
+            if (updatedCandles.length > 550) updatedCandles = updatedCandles.slice(-550);
+            
+            enrichedCandles = this.enrich(updatedCandles);
+
         } else {
-            updatedCandles.push(newCandle);
-        }
-        
-        // Keep buffer size reasonable
-        if (updatedCandles.length > 550) updatedCandles = updatedCandles.slice(-550);
+            // RESAMPLING MODE
+            
+            // 1. Update Base Candles
+            let updatedBase = [...this.baseCandles];
+            const lastBase = updatedBase[updatedBase.length - 1];
+            
+            if (lastBase && lastBase.time === newCandle.time) {
+                updatedBase[updatedBase.length - 1] = newCandle;
+            } else {
+                updatedBase.push(newCandle);
+            }
+            
+            // Limit base buffer (needs to be large enough to form enough target candles)
+            // 1500 base candles roughly gives enough data.
+            if (updatedBase.length > 1500) updatedBase = updatedBase.slice(-1500);
+            this.baseCandles = updatedBase;
 
-        // 2. Enrich
-        const enriched = enrichCandlesWithIndicators(updatedCandles, {
-            macdFast: this.runtime.config.macdFast,
-            macdSlow: this.runtime.config.macdSlow,
-            macdSignal: this.runtime.config.macdSignal
-        });
-        this.runtime.candles = enriched;
+            // 2. Resample
+            const resampled = resampleCandles(this.baseCandles, this.runtime.config.interval, this.baseInterval);
+            
+            enrichedCandles = this.enrich(resampled);
+        }
+
+        // Common Logic
+        this.runtime.candles = enrichedCandles;
 
         // 3. Evaluate Strategy
         const result = evaluateStrategy(
-            enriched, 
+            enrichedCandles, 
             this.runtime.config, 
             this.runtime.positionState, 
             this.runtime.tradeStats
@@ -236,6 +283,14 @@ export class StrategyRunner {
 
         // 6. Notify Manager
         this.emitUpdate();
+    }
+
+    private enrich(candles: Candle[]): Candle[] {
+        return enrichCandlesWithIndicators(candles, {
+            macdFast: this.runtime.config.macdFast,
+            macdSlow: this.runtime.config.macdSlow,
+            macdSignal: this.runtime.config.macdSignal
+        });
     }
 
     private async sendWebhook(payload: WebhookPayload, isManual: boolean = false) {

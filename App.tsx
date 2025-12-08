@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { StrategyConfig, AlertLog, PositionState, TradeStats, StrategyRuntime } from './types';
@@ -22,7 +23,16 @@ const INITIAL_POS_STATE: PositionState = {
 const INITIAL_STATS: TradeStats = { dailyTradeCount: 0, lastTradeDate: '' };
 
 const App: React.FC = () => {
-  const [strategies, setStrategies] = useState<Record<string, StrategyRuntime>>({});
+  // Initialize with Default Strategy immediately so UI renders even if offline
+  const [strategies, setStrategies] = useState<Record<string, StrategyRuntime>>({
+      [DEFAULT_CONFIG.id]: {
+          config: DEFAULT_CONFIG,
+          candles: [],
+          positionState: INITIAL_POS_STATE,
+          tradeStats: INITIAL_STATS,
+          lastPrice: 0
+      }
+  });
   const [activeStrategyId, setActiveStrategyId] = useState<string>(DEFAULT_CONFIG.id);
   const [logs, setLogs] = useState<AlertLog[]>([]);
   const [isConnected, setIsConnected] = useState(false);
@@ -47,7 +57,7 @@ const App: React.FC = () => {
     // Receive Full State (Initial load or Add/Remove strategy)
     socket.on('full_state', (data: Record<string, StrategyRuntime>) => {
         setStrategies(data);
-        // Ensure active ID is valid
+        // If the active strategy is no longer in the list (e.g. deleted), switch to first available
         if (!data[activeStrategyId]) {
             const keys = Object.keys(data);
             if (keys.length > 0) setActiveStrategyId(keys[0]);
@@ -82,6 +92,18 @@ const App: React.FC = () => {
       // but for sliders we might want instant feedback.
       // For now, send to server.
       socketRef.current?.emit('cmd_update_config', { id, updates });
+      
+      // Also update local state optimistically for better UX on inputs
+      setStrategies(prev => {
+          if (!prev[id]) return prev;
+          return {
+              ...prev,
+              [id]: {
+                  ...prev[id],
+                  config: { ...prev[id].config, ...updates }
+              }
+          };
+      });
   };
 
   const addStrategy = () => {
@@ -143,14 +165,8 @@ const App: React.FC = () => {
 
   const activeStrategyLogs = logs.filter(l => l.strategyId === activeStrategyId);
 
-  if (!isConnected && Object.keys(strategies).length === 0) {
-      return (
-          <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-800">
-              <div className="text-2xl font-bold mb-4">连接后端服务器中...</div>
-              <div className="text-sm text-slate-500">请确保 `npm run server` 正在运行</div>
-          </div>
-      )
-  }
+  // REMOVED BLOCKING LOADING SCREEN
+  // Now we just show the UI with "Disconnected" status if offline.
 
   return (
     <div className="flex h-screen w-full bg-slate-50 text-slate-900 overflow-hidden font-sans">
@@ -176,7 +192,7 @@ const App: React.FC = () => {
               加密货币量化监控 - {activeStrategy.config.name} ({activeStrategy.config.symbol})
             </h1>
             <div className={`text-xs px-2 py-0.5 rounded border ${isConnected ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'}`}>
-                {isConnected ? '后端在线' : '后端断开'}
+                {isConnected ? '后端在线' : '后端断开 (预览模式)'}
             </div>
             <span className="text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                今日交易: {activeStrategy.tradeStats.dailyTradeCount} / {activeStrategy.config.maxDailyTrades}

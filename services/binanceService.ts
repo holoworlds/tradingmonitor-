@@ -5,14 +5,16 @@ import { BINANCE_REST_BASE } from "../constants";
 export const fetchHistoricalCandles = async (symbol: SymbolType, interval: IntervalType): Promise<Candle[]> => {
   try {
     // Binance Futures Endpoint: /klines
-    const url = `${BINANCE_REST_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=499`;
+    // Increase limit to 1500 (max allowed) to support resampling from smaller intervals
+    const url = `${BINANCE_REST_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=1500`;
     
     // In Node.js 18+, fetch is global. In older versions, this might need a polyfill.
     const response = await fetch(url);
     const data = await response.json();
 
     if (!Array.isArray(data)) {
-        console.error("Invalid response from Binance:", JSON.stringify(data));
+        // Log the stringified error object to see detail (e.g. invalid symbol code)
+        console.error("Invalid response from Binance (Expected Array):", JSON.stringify(data));
         return [];
     }
 
