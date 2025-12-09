@@ -28,7 +28,6 @@ export const determineBaseConfig = (targetInterval: IntervalType): { baseInterva
   }
 
   // Mappings for non-standard intervals to their largest common divisor standard interval
-  // This ensures we fetch the maximum relevant history and resample efficiently.
   const mappings: Record<string, string> = {
     '2m': '1m',
     '6m': '3m',
@@ -62,6 +61,7 @@ export const resampleCandles = (baseCandles: Candle[], targetInterval: IntervalT
     
     if (!resampledMap.has(targetStartTime)) {
       resampledMap.set(targetStartTime, {
+        symbol: base.symbol, // Preserve Identity
         time: targetStartTime,
         open: base.open,
         high: base.high,
@@ -81,12 +81,9 @@ export const resampleCandles = (baseCandles: Candle[], targetInterval: IntervalT
     current.volume += base.volume;
 
     // Check closure logic
-    // A target candle is considered closed if the current base candle is closed 
-    // AND it aligns with the end of the target period.
     const baseEndTime = base.time + baseMs;
     const targetEndTime = targetStartTime + targetMs;
     
-    // Allow for small time drift tolerance if needed
     if (base.isClosed && baseEndTime >= targetEndTime) {
         current.isClosed = true;
     }

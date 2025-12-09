@@ -43,8 +43,6 @@ export class StrategyRunner {
         this.isRunning = true;
 
         // Subscribe to Data Engine
-        // The Engine handles connection, fetching history, and resampling.
-        // We just provide a callback to receive the final candles.
         await dataEngine.subscribe(
             this.runtime.config.id,
             this.runtime.config.symbol,
@@ -104,29 +102,33 @@ export class StrategyRunner {
     }
 
     private initializeManualPosition(config: StrategyConfig) {
-        if (config.takeoverDirection === 'FLAT') {
+        // SAFETY FIX: Ensure defaults to prevent crash
+        const direction = config.takeoverDirection || 'FLAT';
+        const qty = config.takeoverQuantity || 0;
+
+        if (direction === 'FLAT') {
             this.runtime.positionState = INITIAL_POS_STATE;
             console.log(`[${config.name}] Manual Takeover: Reset to FLAT`);
         } else {
             const price = this.runtime.lastPrice; 
-            const qty = config.takeoverQuantity;
             
             this.runtime.positionState = {
-                direction: config.takeoverDirection,
+                direction: direction,
                 initialQuantity: qty,
                 remainingQuantity: qty,
                 entryPrice: price,
-                highestPrice: config.takeoverDirection === 'LONG' ? price : 0,
-                lowestPrice: config.takeoverDirection === 'SHORT' ? price : 0,
+                highestPrice: direction === 'LONG' ? price : 0,
+                lowestPrice: direction === 'SHORT' ? price : 0,
                 openTime: Date.now(), 
                 tpLevelsHit: [],
                 slLevelsHit: []
             };
 
             const payload: WebhookPayload = {
-                secret: config.secret,
-                action: config.takeoverDirection === 'LONG' ? 'buy' : 'sell',
-                position: config.takeoverDirection.toLowerCase(),
+                secret: config.secret || '',
+                action: direction === 'LONG' ? 'buy' : 'sell',
+                // SAFETY: Use optional chaining to prevent crash if direction is somehow undefined
+                position: direction?.toLowerCase() || 'flat',
                 symbol: config.symbol,
                 trade_amount: qty * price,
                 leverage: 5,
@@ -138,7 +140,7 @@ export class StrategyRunner {
                 execution_quantity: qty
             };
             this.sendWebhook(payload, true);
-            console.log(`[${config.name}] Manual Takeover: Initialized ${config.takeoverDirection} ${qty}`);
+            console.log(`[${config.name}] Manual Takeover: Initialized ${direction} ${qty}`);
         }
     }
 
@@ -172,7 +174,7 @@ export class StrategyRunner {
         }
 
         const payload: WebhookPayload = {
-            secret: this.runtime.config.secret,
+            secret: this.runtime.config.secret || '',
             action: act,
             position: pos,
             symbol: this.runtime.config.symbol,
@@ -218,12 +220,21 @@ export class StrategyRunner {
     private handleDataUpdate(candles: Candle[]) {
         if (candles.length === 0) return;
 
+        // --- ZERO TOLERANCE DATA IDENTITY CHECK ---
+        // Ensure the data packet belongs to the correct Symbol.
+        // This strictly prevents data contamination from other streams.
+        const incomingSymbol = candles[0].symbol;
+        if (incomingSymbol && incomingSymbol.toUpperCase() !== this.runtime.config.symbol.toUpperCase()) {
+             // CRITICAL ERROR: Drop the data immediately.
+             console.error(`[CRITICAL] ZERO TOLERANCE: Strategy ${this.runtime.config.name} (Config: ${this.runtime.config.symbol}) received Data for ${incomingSymbol}. IGNORING.`);
+             return;
+        }
+        // ------------------------------------------
+
         // 1. Update Price
         this.runtime.lastPrice = candles[candles.length - 1].close;
 
         // 2. Enrich (Calculate Indicators)
-        // Optimization: In a more advanced version, DataEngine could share this too if params match.
-        // For now, we calculate per strategy to allow custom params per strategy.
         const enriched = enrichCandlesWithIndicators(candles, {
             macdFast: this.runtime.config.macdFast,
             macdSlow: this.runtime.config.macdSlow,

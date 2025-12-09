@@ -1,11 +1,12 @@
 
 import { StrategyConfig } from "./types";
 
-export const AVAILABLE_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT'] as const;
+export const AVAILABLE_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'ADAUSDT', 'ZECUSDT'] as const;
+
+// Symbols that will be monitored in the background immediately upon server start
+export const PRELOAD_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'ZECUSDT'];
 
 // Extended list of intervals as requested.
-// Note: Non-standard intervals (e.g., 2m, 6m, 31m) may not be natively supported by Binance API 
-// and might result in no data unless the API supports them or resampling is implemented.
 export const AVAILABLE_INTERVALS = [
   '1m', '2m', '3m', '5m', '6m', '10m', '15m', '20m', '30m', '31m', '45m', 
   '1h', '2h', '3h', '4h', '6h', '10h', '12h' 
@@ -30,7 +31,7 @@ export const DEFAULT_CONFIG: StrategyConfig = {
   triggerOnClose: false, // Default to Intraday triggering
 
   manualTakeover: false,
-  takeoverDirection: 'FLAT',
+  takeoverDirection: 'FLAT', // Must prevent undefined
   takeoverQuantity: 1.0,
   takeoverTimestamp: '',
 

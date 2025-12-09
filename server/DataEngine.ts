@@ -1,3 +1,4 @@
+
 import WebSocket from 'ws';
 import { Candle, IntervalType, SymbolType } from "../types";
 import { BINANCE_WS_BASE } from "../constants";
@@ -15,8 +16,6 @@ interface Subscription {
 
 /**
  * StreamHandler manages a SINGLE WebSocket connection for a specific Symbol + BaseInterval.
- * It acts as the "Source of Truth" for raw data.
- * It manages multiple "Derived Streams" (Resampled data) and notifies subscribers.
  */
 class StreamHandler {
     private symbol: SymbolType;
@@ -27,8 +26,7 @@ class StreamHandler {
     // The Source of Truth: Buffer of Base Interval Candles (e.g., 1m)
     private baseCandles: Candle[] = []; 
     
-    // Cache for derived/resampled data to avoid re-calculating for every strategy
-    // Key: TargetInterval (e.g. '6m'), Value: Resampled Candles
+    // Cache for derived/resampled data
     private derivedBuffers: Map<string, Candle[]> = new Map();
 
     // Subscribers grouped by Target Interval
@@ -36,15 +34,28 @@ class StreamHandler {
 
     // Keep-Alive Mechanism
     private destroyTimeout: ReturnType<typeof setTimeout> | null = null;
-    private readonly KEEP_ALIVE_MS = 60000; // 60s wait before destroying stream
+    private readonly KEEP_ALIVE_MS = 60000; 
 
     // Persistence
     private lastSaveTime: number = 0;
-    private readonly SAVE_INTERVAL_MS = 60000; // Save to disk every minute
+    private readonly SAVE_INTERVAL_MS = 60000; 
+
+    // Always Active Flag (for pre-warmed symbols)
+    public isAlwaysActive: boolean = false;
 
     constructor(symbol: SymbolType, baseInterval: IntervalType) {
         this.symbol = symbol;
         this.baseInterval = baseInterval;
+    }
+
+    public setAlwaysActive(active: boolean) {
+        this.isAlwaysActive = active;
+        if (active && this.destroyTimeout) {
+            clearTimeout(this.destroyTimeout);
+            this.destroyTimeout = null;
+        }
+        // If becoming active and not initialized, we should probably ensure it is connected.
+        // But usually initialize() is called right after creation.
     }
 
     private getStoreKey(): string {
@@ -68,9 +79,7 @@ class StreamHandler {
                 const newData = await fetchHistoricalCandles(this.symbol, this.baseInterval, lastTime + 1);
                 
                 if (newData.length > 0) {
-                    console.log(`[DataEngine] Fetched ${newData.length} new candles from API`);
-                    // Merge Logic: Remove duplicates if any overlapping timestamp logic wasn't perfect
-                    // Since we passed lastTime + 1, it should be fine.
+                    console.log(`[DataEngine] Fetched ${newData.length} new candles from API for ${this.symbol}`);
                     this.baseCandles = [...this.baseCandles, ...newData];
                 }
             } catch (e) {
@@ -82,9 +91,6 @@ class StreamHandler {
             this.baseCandles = history;
         }
 
-        // Limit buffer size (keep enough for 1D resampling if needed)
-        // 1500 1m candles is 1 day. If we need more, we might need a larger buffer or different logic.
-        // For now, 2000 is reasonable.
         if (this.baseCandles.length > 2000) {
             this.baseCandles = this.baseCandles.slice(-2000);
         }
@@ -103,9 +109,7 @@ class StreamHandler {
     }
 
     public subscribe(subId: string, targetInterval: IntervalType, callback: DataCallback) {
-        // Cancel pending destruction if any
         if (this.destroyTimeout) {
-            console.log(`[DataEngine] Resurrecting stream for ${this.symbol} (Keep-Alive hit)`);
             clearTimeout(this.destroyTimeout);
             this.destroyTimeout = null;
         }
@@ -115,8 +119,7 @@ class StreamHandler {
         }
         this.subscribers.get(targetInterval)!.push({ id: subId, targetInterval, callback });
 
-        // IMPORTANT: Immediately send current data to the new subscriber
-        // This fixes the issue of charts being empty upon initial load/switch
+        // Send current data immediately
         const currentData = this.getOrCalculateDerivedData(targetInterval);
         callback(currentData);
     }
@@ -126,7 +129,6 @@ class StreamHandler {
             const idx = subs.findIndex(s => s.id === subId);
             if (idx !== -1) {
                 subs.splice(idx, 1);
-                // Clean up derived buffer if no more subscribers for this interval
                 if (subs.length === 0) {
                     this.derivedBuffers.delete(interval);
                     this.subscribers.delete(interval);
@@ -140,14 +142,19 @@ class StreamHandler {
     }
 
     public scheduleDestroy(callback: () => void) {
+        // If marked as always active (pre-warmed), do NOT destroy.
+        if (this.isAlwaysActive) {
+            console.log(`[DataEngine] Stream ${this.symbol} has no subscribers but is PRE-WARMED. Keeping alive.`);
+            return;
+        }
+
         if (this.hasSubscribers()) return;
 
         console.log(`[DataEngine] Stream ${this.symbol} has no subscribers. Destroying in ${this.KEEP_ALIVE_MS / 1000}s...`);
         this.destroyTimeout = setTimeout(() => {
-            // Double check before destroying
-            if (!this.hasSubscribers()) {
+            if (!this.hasSubscribers() && !this.isAlwaysActive) {
                 this.destroy();
-                callback(); // Notify parent to remove from map
+                callback(); 
             }
         }, this.KEEP_ALIVE_MS);
     }
@@ -159,7 +166,6 @@ class StreamHandler {
             this.ws = null;
         }
         
-        // Final Save
         this.saveToDisk();
         
         this.baseCandles = [];
@@ -193,10 +199,9 @@ class StreamHandler {
         });
 
         this.ws.on('close', () => {
-            console.log(`[DataEngine] WS Closed: ${streamName}`);
             this.isConnected = false;
-            // Simple reconnect logic (only if still active and not pending destroy)
-            if (this.hasSubscribers() && !this.destroyTimeout) {
+            // Reconnect if needed
+            if ((this.hasSubscribers() || this.isAlwaysActive) && !this.destroyTimeout) {
                 setTimeout(() => this.connect(), 5000);
             }
         });
@@ -207,7 +212,6 @@ class StreamHandler {
     }
 
     private processNewCandle(newCandle: Candle) {
-        // 1. Update Base Buffer
         const lastBase = this.baseCandles[this.baseCandles.length - 1];
         if (lastBase && lastBase.time === newCandle.time) {
             this.baseCandles[this.baseCandles.length - 1] = newCandle;
@@ -215,20 +219,16 @@ class StreamHandler {
             this.baseCandles.push(newCandle);
         }
         
-        // Auto Save Periodically
         if (Date.now() - this.lastSaveTime > this.SAVE_INTERVAL_MS) {
             this.saveToDisk();
         }
 
-        // Keep buffer size manageable
         if (this.baseCandles.length > 2000) {
             this.baseCandles = this.baseCandles.slice(-2000);
         }
 
-        // 2. Invalidate Derived Buffers
         this.derivedBuffers.clear();
 
-        // 3. Notify All Subscribers
         for (const [interval, subs] of this.subscribers.entries()) {
             const candles = this.getOrCalculateDerivedData(interval as IntervalType);
             subs.forEach(sub => sub.callback(candles));
@@ -236,30 +236,22 @@ class StreamHandler {
     }
 
     private getOrCalculateDerivedData(targetInterval: IntervalType): Candle[] {
-        // If Base == Target (Native), return raw slice
         if (targetInterval === this.baseInterval) {
-            // Return copy to prevent mutation by strategies
             return this.baseCandles.slice(-550); 
         }
 
-        // Check Cache
         if (this.derivedBuffers.has(targetInterval)) {
             return this.derivedBuffers.get(targetInterval)!;
         }
 
-        // Calculate
         const resampled = resampleCandles(this.baseCandles, targetInterval, this.baseInterval);
-        
-        // Cache it
         this.derivedBuffers.set(targetInterval, resampled);
-        
         return resampled;
     }
 }
 
 /**
  * Singleton Data Engine
- * Manages all StreamHandlers.
  */
 class DataEngine {
     private static instance: DataEngine;
@@ -274,18 +266,36 @@ class DataEngine {
         return DataEngine.instance;
     }
 
+    /**
+     * Ensures a stream is active for background data collection.
+     * This is used for pre-warming symbols like BTC, ETH, ZEC.
+     */
+    public async ensureActive(symbol: SymbolType) {
+         // Default base interval is 1m to support synthesizing all other cycles
+         const baseInterval = '1m'; 
+         const streamKey = `${symbol}_${baseInterval}`;
+
+         let stream = this.streams.get(streamKey);
+         if (!stream) {
+            stream = new StreamHandler(symbol, baseInterval);
+            this.streams.set(streamKey, stream);
+            await stream.initialize();
+         }
+         
+         // Mark as "Always Active" to prevent garbage collection
+         stream.setAlwaysActive(true);
+         console.log(`[DataEngine] Pre-warmed background stream: ${symbol}`);
+    }
+
     public async subscribe(
         strategyId: string, 
         symbol: SymbolType, 
         interval: IntervalType, 
         callback: DataCallback
     ) {
-        // 1. Determine Base Interval (e.g. 6m -> 3m base? or 1m base?)
         const { baseInterval } = determineBaseConfig(interval);
-        
         const streamKey = `${symbol}_${baseInterval}`;
 
-        // 2. Get or Create Stream Handler
         let stream = this.streams.get(streamKey);
         if (!stream) {
             stream = new StreamHandler(symbol, baseInterval);
@@ -293,7 +303,6 @@ class DataEngine {
             await stream.initialize();
         }
 
-        // 3. Subscribe
         stream.subscribe(strategyId, interval, callback);
     }
 
@@ -305,15 +314,11 @@ class DataEngine {
         if (stream) {
             stream.unsubscribe(strategyId);
             
-            // Garbage Collection with Keep-Alive
-            if (!stream.hasSubscribers()) {
-                stream.scheduleDestroy(() => {
-                    // Check again inside callback to be safe (though scheduleDestroy handles logic)
-                    if (!stream.hasSubscribers()) {
-                        this.streams.delete(streamKey);
-                    }
-                });
-            }
+            stream.scheduleDestroy(() => {
+                if (!stream.hasSubscribers() && !stream.isAlwaysActive) {
+                    this.streams.delete(streamKey);
+                }
+            });
         }
     }
 }

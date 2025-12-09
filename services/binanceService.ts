@@ -29,6 +29,7 @@ export const fetchHistoricalCandles = async (
     }
 
     return data.map((d: any) => ({
+      symbol: symbol, // Inject Identity
       time: d[0],
       open: parseFloat(d[1]),
       high: parseFloat(d[2]),
@@ -49,6 +50,7 @@ export const parseSocketMessage = (msg: any): Candle | null => {
   const k = msg.k;
 
   return {
+    symbol: msg.s, // Binance provides symbol in 's' field of the data payload
     time: k.t,
     open: parseFloat(k.o),
     high: parseFloat(k.h),

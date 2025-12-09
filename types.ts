@@ -6,6 +6,7 @@ export type IntervalType =
   | '1d' | '2d' | '3d' | '1w' | '1M';
 
 export interface Candle {
+  symbol: string; // Data Identity - CRITICAL for Zero Tolerance check
   time: number;
   open: number;
   high: number;

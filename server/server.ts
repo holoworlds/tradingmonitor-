@@ -4,9 +4,10 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { StrategyRunner } from './StrategyRunner';
-import { DEFAULT_CONFIG } from '../constants';
+import { DEFAULT_CONFIG, PRELOAD_SYMBOLS } from '../constants';
 import { StrategyConfig, StrategyRuntime } from '../types';
 import { FileStore } from './FileStore';
+import { dataEngine } from './DataEngine';
 
 const app = express();
 app.use(cors() as any);
@@ -45,6 +46,13 @@ function saveSystemState() {
 async function initializeSystem() {
     console.log('[System] Initializing...');
 
+    // 0. Pre-warm Data (Background Collection)
+    console.log(`[System] Pre-warming data for: ${PRELOAD_SYMBOLS.join(', ')}`);
+    for (const symbol of PRELOAD_SYMBOLS) {
+        // We use '1m' as base to allow synthesis of all other timeframes
+        await dataEngine.ensureActive(symbol); 
+    }
+
     // 1. Restore Logs
     const savedLogs = FileStore.load<any[]>('logs');
     if (savedLogs && Array.isArray(savedLogs)) {
@@ -59,9 +67,13 @@ async function initializeSystem() {
         
         for (const snapshot of savedSnapshots) {
             try {
+                // MIGRATION: Merge saved config with DEFAULT_CONFIG to ensure new fields (like takeoverDirection) exist
+                // This fixes the "Crash on missing field" issue
+                const sanitizedConfig = { ...DEFAULT_CONFIG, ...snapshot.config };
+
                 // Re-create Runner
                 const runner = new StrategyRunner(
-                    snapshot.config,
+                    sanitizedConfig,
                     (id, runtime) => {
                         broadcastUpdate(id, runtime);
                     },
@@ -76,7 +88,7 @@ async function initializeSystem() {
                     runner.restoreState(snapshot.positionState, snapshot.tradeStats);
                 }
 
-                strategies[snapshot.config.id] = runner;
+                strategies[sanitizedConfig.id] = runner;
                 await runner.start();
             } catch (err) {
                 console.error(`[System] Failed to restore strategy ${snapshot?.config?.id}:`, err);
@@ -137,6 +149,7 @@ io.on('connection', (socket) => {
     socket.on('cmd_update_config', ({ id, updates }: { id: string, updates: Partial<StrategyConfig> }) => {
         const runner = strategies[id];
         if (runner) {
+            // Safety: Merge updates into existing config properly
             const newConfig = { ...runner.runtime.config, ...updates };
             runner.updateConfig(newConfig);
             saveSystemState(); // Save on config change
