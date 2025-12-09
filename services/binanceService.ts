@@ -2,11 +2,23 @@
 import { Candle, IntervalType, SymbolType } from "../types";
 import { BINANCE_REST_BASE } from "../constants";
 
-export const fetchHistoricalCandles = async (symbol: SymbolType, interval: IntervalType): Promise<Candle[]> => {
+export const fetchHistoricalCandles = async (
+  symbol: SymbolType, 
+  interval: IntervalType, 
+  startTime?: number, 
+  endTime?: number
+): Promise<Candle[]> => {
   try {
     // Binance Futures Endpoint: /klines
     // Increase limit to 1500 (max allowed) to support resampling from smaller intervals
-    const url = `${BINANCE_REST_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=1500`;
+    let url = `${BINANCE_REST_BASE}/klines?symbol=${symbol}&interval=${interval}&limit=1500`;
+    
+    if (startTime) {
+        url += `&startTime=${startTime}`;
+    }
+    if (endTime) {
+        url += `&endTime=${endTime}`;
+    }
     
     // In Node.js 18+, fetch is global. In older versions, this might need a polyfill.
     const response = await fetch(url);

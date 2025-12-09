@@ -14,7 +14,7 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", // Allow all origins for simplicity in this setup
+        origin: "*", 
         methods: ["GET", "POST"]
     }
 });
@@ -32,14 +32,12 @@ const defaultRunner = new StrategyRunner(
     (log) => addLog(log)
 );
 strategies[DEFAULT_CONFIG.id] = defaultRunner;
-defaultRunner.start(); // Auto-start the default strategy backend
+defaultRunner.start(); // Auto-start the default strategy
 
 // --- Helper Functions ---
 
 function broadcastUpdate(id: string, runtime: StrategyRuntime) {
-    // Optimization: Don't send the entire candle history every tick if not needed.
-    // For now, we send it all to keep the frontend chart smooth and simple.
-    // In a production app, you'd send only the last candle on 'tick', and full history on 'init'.
+    // Optimization: Broadcast state update to all clients
     io.emit('state_update', { id, runtime });
 }
 
