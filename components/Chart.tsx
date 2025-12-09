@@ -97,16 +97,24 @@ const Chart: React.FC<ChartProps> = ({ data, logs, symbol, interval }) => {
 
   // Default Zoom: Show last 91 candles
   const startIndex = Math.max(0, data.length - 91);
-
-  if (data.length === 0) return <div className="h-full flex items-center justify-center text-slate-400">数据加载中... (Waiting for {symbol} {interval})</div>;
-
-  const minPrice = Math.min(...data.map(d => d.low));
-  const maxPrice = Math.max(...data.map(d => d.high));
+  const minPrice = data.length > 0 ? Math.min(...data.map(d => d.low)) : 0;
+  const maxPrice = data.length > 0 ? Math.max(...data.map(d => d.high)) : 0;
   const padding = (maxPrice - minPrice) * 0.1;
 
   // Use a key based on symbol/interval to force re-mounting when context changes. 
-  // REMOVED data.length to prevent flickering on every tick
   const chartKey = `${symbol}-${interval}`;
+
+  if (data.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          <div className="text-xs">
+             正在加载 {symbol} ({interval}) 数据...<br/>
+             <span className="text-[10px] text-slate-300">如长时间未显示，请检查网络连接</span>
+          </div>
+      </div>
+    );
+  }
 
   return (
     <ResponsiveContainer width="100%" height="100%">

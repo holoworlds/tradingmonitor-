@@ -42,6 +42,9 @@ class StreamHandler {
     // Persistence
     private lastSaveTime: number = 0;
     private readonly SAVE_INTERVAL_MS = 60000; 
+    
+    // Limits
+    private readonly MAX_CANDLES = 5000; // Increased to support synthesized intervals (e.g. 1m -> 31m)
 
     // Always Active Flag (for pre-warmed symbols)
     public isAlwaysActive: boolean = false;
@@ -68,42 +71,73 @@ class StreamHandler {
     }
 
     public async initialize() {
-        // console.log(`[DataEngine] Initializing Stream: ${this.symbol} @ ${this.baseInterval}`);
-        
         // 1. Try Load from Disk
-        const localData = FileStore.load<Candle[]>(this.getStoreKey()) || [];
+        let localData = FileStore.load<Candle[]>(this.getStoreKey()) || [];
         
         if (localData.length > 0) {
-            // console.log(`[DataEngine] Loaded ${localData.length} candles from disk for ${this.symbol}`);
+            // Sort to be safe
+            localData.sort((a, b) => a.time - b.time);
             this.baseCandles = localData;
             
             // 2. Fetch Incremental History
             const lastTime = localData[localData.length - 1].time;
             try {
-                // Start from the next candle time
+                // Fetch new data since last save
                 const newData = await fetchHistoricalCandles(this.symbol, this.baseInterval, lastTime + 1);
-                
                 if (newData.length > 0) {
-                    console.log(`[DataEngine] Fetched ${newData.length} new candles from API for ${this.symbol} ${this.baseInterval}`);
+                    console.log(`[DataEngine] Fetched ${newData.length} new candles for ${this.symbol} ${this.baseInterval}`);
                     this.baseCandles = [...this.baseCandles, ...newData];
                 }
             } catch (e) {
                 console.error("[DataEngine] Failed incremental fetch", e);
             }
         } else {
-            // 2. Fetch Full History
-            const history = await fetchHistoricalCandles(this.symbol, this.baseInterval);
-            this.baseCandles = history;
+            // 3. Deep Fetch (Multi-Page) for Fresh Start
+            // We need enough data for derived intervals. 
+            // e.g. 31m derived from 1m needs ~3100 candles for 100 bars of history.
+            // Binance limit is 1500. We fetch 3 pages (~4500 candles).
+            
+            console.log(`[DataEngine] Deep fetching history for ${this.symbol} ${this.baseInterval}...`);
+            let allFetched: Candle[] = [];
+            let endTime: number | undefined = undefined; // Start with 'now'
+
+            // Fetch up to 3 pages (3 * 1500 = 4500 candles)
+            for (let i = 0; i < 3; i++) {
+                try {
+                    const batch = await fetchHistoricalCandles(this.symbol, this.baseInterval, undefined, endTime);
+                    if (batch.length === 0) break;
+                    
+                    allFetched = [...batch, ...allFetched]; // Prepend older data
+                    
+                    // Set endTime for next batch to be just before the oldest candle we just got
+                    endTime = batch[0].time - 1;
+                    
+                    // If we got less than limit, we reached beginning of trading
+                    if (batch.length < 500) break; 
+                    
+                } catch (e) {
+                    console.error(`[DataEngine] Error during deep fetch page ${i}`, e);
+                    break;
+                }
+            }
+            
+            // Deduplicate just in case
+            const uniqueMap = new Map();
+            allFetched.forEach(c => uniqueMap.set(c.time, c));
+            this.baseCandles = Array.from(uniqueMap.values()).sort((a: any, b: any) => a.time - b.time);
+            
+            console.log(`[DataEngine] Initialized ${this.symbol} ${this.baseInterval} with ${this.baseCandles.length} candles.`);
         }
 
-        if (this.baseCandles.length > 2000) {
-            this.baseCandles = this.baseCandles.slice(-2000);
+        // Trim to Max Limit
+        if (this.baseCandles.length > this.MAX_CANDLES) {
+            this.baseCandles = this.baseCandles.slice(-this.MAX_CANDLES);
         }
         
         // Initial Save
         this.saveToDisk();
 
-        // 3. Connect WebSocket
+        // 4. Connect WebSocket
         this.connect();
     }
 
@@ -228,10 +262,12 @@ class StreamHandler {
             this.saveToDisk();
         }
 
-        if (this.baseCandles.length > 2000) {
-            this.baseCandles = this.baseCandles.slice(-2000);
+        // Maintain buffer size
+        if (this.baseCandles.length > this.MAX_CANDLES) {
+            this.baseCandles = this.baseCandles.slice(-this.MAX_CANDLES);
         }
 
+        // Clear derived cache as base data changed
         this.derivedBuffers.clear();
 
         // 1. Process Active Subscribers
@@ -253,8 +289,10 @@ class StreamHandler {
     }
 
     private getOrCalculateDerivedData(targetInterval: IntervalType): Candle[] {
+        // Direct mapping
         if (targetInterval === this.baseInterval) {
-            return this.baseCandles.slice(-550); 
+            // Return a reasonable subset for display/calc to avoid sending 5000 candles to frontend
+            return this.baseCandles.slice(-1000); 
         }
 
         if (this.derivedBuffers.has(targetInterval)) {
@@ -262,8 +300,12 @@ class StreamHandler {
         }
 
         const resampled = resampleCandles(this.baseCandles, targetInterval, this.baseInterval);
-        this.derivedBuffers.set(targetInterval, resampled);
-        return resampled;
+        
+        // Ensure we don't hold too many derived candles either
+        const trimmed = resampled.slice(-1000);
+        
+        this.derivedBuffers.set(targetInterval, trimmed);
+        return trimmed;
     }
 }
 

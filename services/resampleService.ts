@@ -39,7 +39,7 @@ export const determineBaseConfig = (targetInterval: IntervalType): { baseInterva
   // 2. Smart Synthesis Mappings (Optimal Base Source)
   const mappings: Record<string, string> = {
     '2m': '1m',   // 1m * 2
-    '31m': '1m',  // 1m * 31 (Prime number, best fit is 1m)
+    // '31m': '1m',  // Removed 31m as per user request
     
     '6m': '3m', // Adjusted for mathematical correctness (3m * 2 = 6m)
 

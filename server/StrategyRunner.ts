@@ -1,5 +1,4 @@
 
-
 import { StrategyConfig, StrategyRuntime, Candle, PositionState, TradeStats, WebhookPayload } from "../types";
 import { enrichCandlesWithIndicators } from "../services/indicatorService";
 import { evaluateStrategy } from "../services/strategyEngine";
@@ -24,6 +23,9 @@ export class StrategyRunner {
     private onUpdate: (id: string, runtime: StrategyRuntime) => void;
     private onLog: (log: any) => void;
     private isRunning: boolean = false;
+    
+    // Safety ID to prevent processing stale callbacks from previous interval subscriptions
+    private subscriptionId: number = 0;
 
     constructor(config: StrategyConfig, onUpdate: (id: string, runtime: StrategyRuntime) => void, onLog: (log: any) => void) {
         this.onUpdate = onUpdate;
@@ -43,12 +45,22 @@ export class StrategyRunner {
         console.log(`[${this.runtime.config.name}] Starting Strategy (Shared Engine Mode)...`);
         this.isRunning = true;
 
+        // Increment ID to invalidate any lingering old callbacks
+        this.subscriptionId++;
+        const currentSid = this.subscriptionId;
+
         // Subscribe to Data Engine
         await dataEngine.subscribe(
             this.runtime.config.id,
             this.runtime.config.symbol,
             this.runtime.config.interval,
-            (candles) => this.handleDataUpdate(candles)
+            (candles) => {
+                // STALE DATA PROTECTION
+                // If the strategy has been restarted (new ID), ignore old callbacks
+                if (this.subscriptionId !== currentSid) return;
+                
+                this.handleDataUpdate(candles);
+            }
         );
     }
 
@@ -81,6 +93,10 @@ export class StrategyRunner {
             this.stop();
             // Clear current state as context changed
             this.runtime.candles = []; 
+            
+            // Trigger update immediately so UI shows "Loading" state (empty candles)
+            this.emitUpdate(); 
+            
             this.start();
         } else {
             // Just trigger an update to ensure UI sees new config
