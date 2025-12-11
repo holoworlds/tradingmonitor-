@@ -1,3 +1,5 @@
+
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { StrategyConfig, AlertLog, PositionState, TradeStats, StrategyRuntime } from './types';
@@ -19,7 +21,9 @@ const INITIAL_POS_STATE: PositionState = {
     lowestPrice: 0, 
     openTime: 0, 
     tpLevelsHit: [], 
-    slLevelsHit: []
+    slLevelsHit: [],
+    pendingReversion: null,
+    pendingReversionReason: ''
 };
 const INITIAL_STATS: TradeStats = { dailyTradeCount: 0, lastTradeDate: '' };
 

@@ -14,7 +14,9 @@ const INITIAL_POS_STATE: PositionState = {
     lowestPrice: 0, 
     openTime: 0, 
     tpLevelsHit: [], 
-    slLevelsHit: []
+    slLevelsHit: [],
+    pendingReversion: null,
+    pendingReversionReason: ''
 };
 
 const INITIAL_STATS: TradeStats = { dailyTradeCount: 0, lastTradeDate: new Date().toISOString().split('T')[0] };
@@ -139,7 +141,9 @@ export class StrategyRunner {
                 lowestPrice: direction === 'SHORT' ? price : 0,
                 openTime: Date.now(), 
                 tpLevelsHit: [],
-                slLevelsHit: []
+                slLevelsHit: [],
+                pendingReversion: null,
+                pendingReversionReason: ''
             };
 
             const payload: WebhookPayload = {
@@ -226,7 +230,9 @@ export class StrategyRunner {
                 lowestPrice: type === 'SHORT' ? price : 0,
                 openTime: now.getTime(),
                 tpLevelsHit: [],
-                slLevelsHit: []
+                slLevelsHit: [],
+                pendingReversion: null,
+                pendingReversionReason: ''
             };
             newStats.dailyTradeCount += 1;
         }

@@ -115,6 +115,10 @@ export interface StrategyConfig {
   macdExitLong: boolean; // 死叉平多
   macdExitShort: boolean; // 金叉平空
 
+  // Reversion Entry (EMA7)
+  useReversionEntry: boolean; // Enable waiting for EMA7
+  reversionPct: number; // Distance % from EMA7 (positive = above, negative = below)
+
   // Trailing Stop
   useTrailingStop: boolean;
   trailActivation: number; 
@@ -153,6 +157,10 @@ export interface PositionState {
   openTime: number;
   tpLevelsHit: boolean[]; 
   slLevelsHit: boolean[]; 
+
+  // Reversion State
+  pendingReversion: 'LONG' | 'SHORT' | null; // If not null, we are waiting for price to hit EMA7 target
+  pendingReversionReason: string;
 }
 
 export interface TradeStats {

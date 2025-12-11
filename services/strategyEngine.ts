@@ -282,7 +282,9 @@ export const evaluateStrategy = (
             lowestPrice: 0,
             openTime: 0,
             tpLevelsHit: [],
-            slLevelsHit: []
+            slLevelsHit: [],
+            pendingReversion: null,
+            pendingReversionReason: ''
           };
           nextStats.dailyTradeCount++;
           
@@ -306,7 +308,9 @@ export const evaluateStrategy = (
                   lowestPrice: last.low,
                   openTime: now.getTime(),
                   tpLevelsHit: [],
-                  slLevelsHit: []
+                  slLevelsHit: [],
+                  pendingReversion: null,
+                  pendingReversionReason: ''
                 };
              } else if (!isLong && config.reverseShortToLong && canOpen) {
                 // Open Long (from Flat) -> Buy
@@ -320,7 +324,9 @@ export const evaluateStrategy = (
                   lowestPrice: 0,
                   openTime: now.getTime(),
                   tpLevelsHit: [],
-                  slLevelsHit: []
+                  slLevelsHit: [],
+                  pendingReversion: null,
+                  pendingReversionReason: ''
                 };
              }
           }
@@ -330,10 +336,78 @@ export const evaluateStrategy = (
 
   // B. Check Entries (Only if FLAT and Manual Takeover is FALSE)
   if (nextPos.direction === 'FLAT' && canOpen && !config.manualTakeover) {
-      if (longEntryReason || shortEntryReason) {
-          const qty = config.tradeAmount / last.close;
-          const tradeVal = config.tradeAmount;
+      
+      const qty = config.tradeAmount / last.close;
+      const tradeVal = config.tradeAmount;
 
+      // --- NEW: Price Reversion Logic ---
+      if (config.useReversionEntry && last.ema7) {
+          
+          // 1. If we are already waiting for reversion
+          if (nextPos.pendingReversion) {
+             const targetPrice = last.ema7 * (1 + config.reversionPct / 100);
+             let trigger = false;
+
+             if (nextPos.pendingReversion === 'LONG') {
+                 // Waiting for pullback to EMA7 (or near it)
+                 // Trigger if Price is BELOW or EQUAL to Target
+                 if (last.close <= targetPrice) trigger = true;
+             } else if (nextPos.pendingReversion === 'SHORT') {
+                 // Waiting for rally to EMA7
+                 // Trigger if Price is ABOVE or EQUAL to Target
+                 if (last.close >= targetPrice) trigger = true;
+             }
+
+             if (trigger) {
+                // Execute the trade
+                const act = nextPos.pendingReversion === 'LONG' ? 'buy' : 'sell';
+                const pos = nextPos.pendingReversion.toLowerCase();
+                const reason = nextPos.pendingReversionReason + ` (回归EMA7触发)`;
+                
+                actions.push(createPayload(act, pos, reason, tradeVal, qty));
+
+                nextPos = {
+                    direction: nextPos.pendingReversion,
+                    initialQuantity: qty,
+                    remainingQuantity: qty,
+                    entryPrice: last.close,
+                    highestPrice: nextPos.pendingReversion === 'LONG' ? last.high : 0,
+                    lowestPrice: nextPos.pendingReversion === 'SHORT' ? last.low : 0,
+                    openTime: now.getTime(),
+                    tpLevelsHit: [],
+                    slLevelsHit: [],
+                    pendingReversion: null,
+                    pendingReversionReason: ''
+                };
+                return { newPositionState: nextPos, newTradeStats: nextStats, actions };
+             } else {
+                 // Check if signal invalidation happened? 
+                 // For now, if a OPPOSITE signal comes, we switch pending direction.
+                 if (shortEntryReason && nextPos.pendingReversion === 'LONG') {
+                     nextPos.pendingReversion = 'SHORT';
+                     nextPos.pendingReversionReason = shortEntryReason;
+                 } else if (longEntryReason && nextPos.pendingReversion === 'SHORT') {
+                     nextPos.pendingReversion = 'LONG';
+                     nextPos.pendingReversionReason = longEntryReason;
+                 }
+                 // Return without executing, still pending
+                 return { newPositionState: nextPos, newTradeStats: nextStats, actions };
+             }
+          }
+
+          // 2. If we are not pending, check for new signals to start pending
+          if (longEntryReason) {
+              nextPos.pendingReversion = 'LONG';
+              nextPos.pendingReversionReason = longEntryReason;
+              return { newPositionState: nextPos, newTradeStats: nextStats, actions };
+          } else if (shortEntryReason) {
+              nextPos.pendingReversion = 'SHORT';
+              nextPos.pendingReversionReason = shortEntryReason;
+              return { newPositionState: nextPos, newTradeStats: nextStats, actions };
+          }
+
+      } else {
+          // --- Standard Logic (Immediate Entry) ---
           if (longEntryReason) {
               actions.push(createPayload('buy', 'long', longEntryReason, tradeVal, qty));
               nextPos = {
@@ -345,7 +419,9 @@ export const evaluateStrategy = (
                 lowestPrice: 0,
                 openTime: now.getTime(),
                 tpLevelsHit: [],
-                slLevelsHit: []
+                slLevelsHit: [],
+                pendingReversion: null,
+                pendingReversionReason: ''
               };
           } else if (shortEntryReason) {
               actions.push(createPayload('sell', 'short', shortEntryReason, tradeVal, qty));
@@ -358,7 +434,9 @@ export const evaluateStrategy = (
                 lowestPrice: last.low,
                 openTime: now.getTime(),
                 tpLevelsHit: [],
-                slLevelsHit: []
+                slLevelsHit: [],
+                pendingReversion: null,
+                pendingReversionReason: ''
               };
           }
       }

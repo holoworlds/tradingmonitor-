@@ -10,7 +10,7 @@ export const PRELOAD_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'ZECUSDT'];
 // Extended list of intervals as requested. Added 8h which was missing. Removed 31m.
 export const AVAILABLE_INTERVALS = [
   '1m', '2m', '3m', '5m', '6m', '10m', '15m', '20m', '30m', '45m', 
-  '1h', '2h', '3h', '4h', '6h', '8h', '10h', '12h', 
+  '1h', '2h', '3h', '4h', '6h', '8h', '10h', '12h' , 
   '1d', '2d', '3d', '1w', '1M'
 ] as const; 
 
@@ -76,6 +76,10 @@ export const DEFAULT_CONFIG: StrategyConfig = {
   macdShort: false,
   macdExitLong: false,
   macdExitShort: false,
+
+  // Reversion Entry
+  useReversionEntry: false,
+  reversionPct: 0.1,
 
   // Trailing Stop
   useTrailingStop: false,

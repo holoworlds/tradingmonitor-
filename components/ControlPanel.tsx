@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { StrategyConfig } from '../types';
 import { AVAILABLE_SYMBOLS, AVAILABLE_INTERVALS } from '../constants';
@@ -228,6 +229,21 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                                             <Toggle label="金叉平空" checked={activeConfig.macdExitShort} onChange={(v: boolean) => handleChange('macdExitShort', v)} size="sm" />
                                             <Toggle label="死叉平多" checked={activeConfig.macdExitLong} onChange={(v: boolean) => handleChange('macdExitLong', v)} size="sm" />
                                         </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Reversion Entry */}
+                            <div className="bg-slate-50 p-2 rounded border border-slate-100">
+                                <Toggle label="价格回归 (EMA7)" checked={activeConfig.useReversionEntry} onChange={(v: boolean) => handleChange('useReversionEntry', v)} className="mb-2 font-bold text-indigo-600"/>
+                                {activeConfig.useReversionEntry && (
+                                    <div className="mt-2 border-t border-slate-200 pt-2">
+                                        <p className="text-[10px] text-slate-500 mb-2 leading-tight">
+                                            信号触发后不立即开仓，等待价格回调至 EMA7 附近。
+                                            <br/>
+                                            0 = 等于 EMA7; 0.1 = EMA7 上方 0.1%; -0.1 = EMA7 下方 0.1%
+                                        </p>
+                                        <Input label="回归距离 %" type="number" value={activeConfig.reversionPct} onChange={(v: string) => handleChange('reversionPct', parseFloat(v))} />
                                     </div>
                                 )}
                             </div>
